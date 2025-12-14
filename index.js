@@ -24,6 +24,25 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+    const database = client.db('bloodbankDB')
+    const userCollection = database.collection('user')
+
+    app.post('/users', async (req, res) => {
+      const userInfo = req.body;
+      userInfo.role = "buyer"
+      userInfo.createdAt = new Date()
+
+      const result = await userCollection.insertOne(userInfo)
+      res.send(result)
+    })
+
+    app.get('/users/role/:email', async (req, res) => {
+      const {email} = req.params
+      const query = { email: email }
+      const result = await userCollection.findOne(query)
+      res.send(result)
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -35,10 +54,10 @@ async function run() {
 run().catch(console.dir);
 
 
-app.get('/',(req,res)=>{
-    res.send("Hi Guy's it's Akash Zain")
+app.get('/', (req, res) => {
+  res.send("Hi Guy's it's Akash Zain")
 })
 
-app.listen(port,()=>{
-    console.log(`Server is runing on port ${port}`)
+app.listen(port, () => {
+  console.log(`Server is runing on port ${port}`)
 })
