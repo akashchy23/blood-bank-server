@@ -26,10 +26,10 @@ async function run() {
     await client.connect();
     const database = client.db('bloodbankDB')
     const userCollection = database.collection('user')
+    const productCollection = database.collection('products')
 
     app.post('/users', async (req, res) => {
       const userInfo = req.body;
-      userInfo.role = "buyer"
       userInfo.createdAt = new Date()
 
       const result = await userCollection.insertOne(userInfo)
@@ -37,10 +37,17 @@ async function run() {
     })
 
     app.get('/users/role/:email', async (req, res) => {
-      const {email} = req.params
+      const { email } = req.params
       const query = { email: email }
       const result = await userCollection.findOne(query)
       res.send(result)
+    })
+
+    app.post('/products', async(req, res) => {
+           const data = req.body;
+           data.createdAt = new Date()
+           const result = await productCollection.insertOne(data)
+           res.send(result)
     })
 
     // Send a ping to confirm a successful connection
