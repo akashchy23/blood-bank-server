@@ -63,6 +63,11 @@ async function run() {
       res.send(result)
     })
 
+    app.get('/users', verifyFbToken, async (req, res) => {
+      const result = await userCollection.find().toArray()
+      res.status(200).send(result)
+    })
+
     app.get('/users/role/:email', async (req, res) => {
       const { email } = req.params
       const query = { email: email }
@@ -70,21 +75,37 @@ async function run() {
       res.send(result)
     })
 
-    app.post('/requests',verifyFbToken, async (req, res) => {
+    app.patch('/update/user/status', verifyFbToken, async (req, res) => {
+      const { email, status } = req.query
+      const query = { email: email }
+
+      const updateStatus = {
+        $set: {
+          status: status
+        }
+      }
+
+      const result = await userCollection.updateOne(query, updateStatus)
+      res.send(result)
+    })
+
+    app.post('/requests', verifyFbToken, async (req, res) => {
       const data = req.body;
       data.createdAt = new Date()
       const result = await requestsCollection.insertOne(data)
       res.send(result)
     })
 
-    app.get('/manager/products/:email', async (req, res) => {
-      const { email } = req.params
-      const query = { managerEmail: email }
+    app.get('/my-request', verifyFbToken, async (req, res) => {
+         const email = req.decoded_email;
+         const size = Number(req.query.size)
+         const page = Number(req.query.page)
+         const query = {requesterEmail: email}
+         const result = await requestsCollection.find(query).limit(size)
+         .skip(size*page).toArray()
 
-      const result = await productCollection.find(query).toArray()
-
-      res.send(result)
-
+         const totalRequest = await requestsCollection.countDocuments(query)
+         res.send({request: result,totalRequest})
     })
 
     // Send a ping to confirm a successful connection
