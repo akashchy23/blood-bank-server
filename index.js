@@ -55,6 +55,7 @@ async function run() {
     const database = client.db('bloodbankDB')
     const userCollection = database.collection('user')
     const requestsCollection = database.collection('request')
+    const paymentsCollection = database.collection('payments')
 
     app.post('/users', async (req, res) => {
       const userInfo = req.body;
@@ -99,15 +100,94 @@ async function run() {
     })
 
     app.get('/my-request', verifyFbToken, async (req, res) => {
-         const email = req.decoded_email;
-         const size = Number(req.query.size)
-         const page = Number(req.query.page)
-         const query = {requesterEmail: email}
-         const result = await requestsCollection.find(query).limit(size)
-         .skip(size*page).toArray()
+      const email = req.decoded_email;
+      const size = Number(req.query.size)
+      const page = Number(req.query.page)
+      const query = { requesterEmail: email }
+      const result = await requestsCollection.find(query).limit(size)
+        .skip(size * page).toArray()
 
-         const totalRequest = await requestsCollection.countDocuments(query)
-         res.send({request: result,totalRequest})
+      const totalRequest = await requestsCollection.countDocuments(query)
+      res.send({ request: result, totalRequest })
+    })
+
+
+    app.get('/search-requests', async (req, res) => {
+        const {bloodGroup,district,upazila}=req.query
+         const query = {}
+         if(!query) return
+         if(bloodGroup){
+          query.bloodGroup = bloodGroup.replace(/ /g, "+").trim()
+         }
+         if(district){
+          query.district=district
+         }
+         if(upazila){
+          query.upazila=upazila
+         }
+        console.log(query)
+         const result = await requestsCollection.find(query).toArray()
+         res.send(result)
+    }) 
+
+
+    // for payment
+    app.post('/create-payment-checkout', async (req, res) => {
+      const information = req.body
+      const amount = parseInt(information.donateAmount) * 100
+
+      const stripe = require('stripe')(process.env.STRIPE_SECRET2S);
+
+      const session = await stripe.checkout.sessions.create({
+
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              unit_amount: amount,
+              product_data: {
+                name: 'Please Donate'
+              }
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        metadata: {
+          donorName: information?.donorName
+        },
+        customer_email: information?.donorEmail,
+        success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
+      });
+
+      res.send({ url: session.url })
+    })
+
+    app.post('/payment-success', async (req, res) => {
+      const { session_id } = req.query
+
+      const session = await stripe.checkout.sessions.retrieve(
+        session_id
+      );
+
+      console.log(session)
+      const transactionId = session.payment_intent
+      const isPaymentExist = await paymentsCollection.findOne({ transactionId })
+      if (isPaymentExist) return
+      if (session.payment_status == 'paid') {
+        const paymentInfo = {
+          amount: session.amount_total / 100,
+          currency: session.currency,
+          donorEmail: session.customer_email,
+          transactionId,
+          payment_status: session.payment_status,
+          paidAt: new Date()
+        }
+        const result = await paymentsCollection.insertOne(paymentInfo)
+        return res.send(result)
+      }
+
     })
 
     // Send a ping to confirm a successful connection
@@ -122,7 +202,7 @@ run().catch(console.dir);
 
 
 app.get('/', (req, res) => {
-  res.send("Hi Guy's it's Akash Zai9")
+  res.send("Hi Guy's it's Akash Zain")
 })
 
 app.listen(port, () => {
