@@ -56,6 +56,7 @@ async function run() {
     const userCollection = database.collection('user')
     const requestsCollection = database.collection('request')
     const paymentsCollection = database.collection('payments')
+    const volunteersCollection = database.collection('volunteers')
 
     app.post('/users', async (req, res) => {
       const userInfo = req.body;
@@ -99,6 +100,46 @@ async function run() {
       res.send(result)
     })
 
+    app.get('/all-requests', async (req, res) => {
+      const result = await requestsCollection.find().toArray()
+      res.send(result)
+    })
+
+    const { ObjectId } = require("mongodb");
+
+    app.get('/request/:id', async (req, res) => {
+      const { id } = req.params;
+
+      const query = { _id: new ObjectId(id) };
+      const result = await requestsCollection.findOne(query);
+
+      if (!result) {
+        return res.status(404).send({ message: "Request not found" });
+      }
+
+      res.send(result);
+    });
+
+    app.patch('/request/:id', verifyFbToken, async (req, res) => {
+      const { id } = req.params;
+      const { status, donorName, donorEmail } = req.body;
+
+      const query = { _id: new ObjectId(id) };
+
+      const updateDoc = {
+        $set: {
+          status: status,
+          donorName,
+          donorEmail,
+          updatedAt: new Date()
+        }
+      };
+
+      const result = await requestsCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+
     app.get('/my-request', verifyFbToken, async (req, res) => {
       const email = req.decoded_email;
       const size = Number(req.query.size)
@@ -113,23 +154,34 @@ async function run() {
 
 
     app.get('/search-requests', async (req, res) => {
-        const {bloodGroup,district,upazila}=req.query
-         const query = {}
-         if(!query) return
-         if(bloodGroup){
-          query.bloodGroup = bloodGroup.replace(/ /g, "+").trim()
-         }
-         if(district){
-          query.district=district
-         }
-         if(upazila){
-          query.upazila=upazila
-         }
-        console.log(query)
-         const result = await requestsCollection.find(query).toArray()
-         res.send(result)
-    }) 
+      const { bloodGroup, district, upazila } = req.query
+      const query = {}
+      if (!query) return
+      if (bloodGroup) {
+        query.bloodGroup = bloodGroup.replace(/ /g, "+").trim()
+      }
+      if (district) {
+        query.district = district
+      }
+      if (upazila) {
+        query.upazila = upazila
+      }
+      console.log(query)
+      const result = await requestsCollection.find(query).toArray()
+      res.send(result)
+    })
 
+    app.post('/add-volunteers', async (req, res) => {
+      const userInfo = req.body;
+      userInfo.createdAt = new Date()
+      userInfo.status = "active"
+      const result = await volunteersCollection.insertOne(userInfo)
+      res.send(result)
+    })
+    app.get('/volunteers', async (req, res) => {
+      const result = await volunteersCollection.find().toArray();
+      res.send(result);
+    });
 
     // for payment
     app.post('/create-payment-checkout', async (req, res) => {
